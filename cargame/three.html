@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Car Builder — Three.js Concept</title>
+  <script src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.min.js"></script>
+  <script type="importmap-shim">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <style>
+    :root { --bg:#0e1116; --panel:#151a21; --accent:#22d3ee; }
+    *{box-sizing:border-box}
+    html, body { height: 100%; }
+    body{margin:0;color:#e8eef6;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:grid;grid-template-rows:auto 1fr auto;min-height:100vh}
+    header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid #000;padding:10px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{border:1px solid #2a3340;background:#1c2430;color:#e8eef6;padding:10px 12px;border-radius:12px;cursor:pointer}
+    .btn:active{transform:scale(0.98)}
+    .icon-btn{display:inline-grid;place-items:center;width:44px;height:44px;padding:0}
+    .btn svg{width:22px;height:22px;display:block;fill:currentColor}
+    input[type="color"]{width:36px;height:36px;border:none;padding:0;background:transparent}
+    select.btn{padding-right:24px}
+    .legend{font-size:12px;color:#a9b3bf;line-height:1.4;margin-top:6px}
+
+    main{position:relative;overflow:hidden}
+    .stage-wrap{width:100%;height:100%;display:grid;place-items:center}
+    .board{width:100vw;height:calc(100vh - 200px);border:1px solid #000;border-radius:14px;background:#0a0f14;position:relative;box-shadow:inset 0 0 0 1px #000,0 10px 40px rgba(0,0,0,.45)}
+    canvas{display:block;outline:none;touch-action:none}
+
+    .palette-bar{position:sticky;bottom:0;z-index:5;background:var(--panel);border-top:1px solid #000;padding:10px 8px}
+    .palette-scroll{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+    .part{flex:0 0 auto;background:#0f141b;border:1px dashed #2a3340;border-radius:10px;padding:10px;display:grid;place-items:center;min-width:64px;min-height:64px}
+    .part svg{width:30px;height:30px}
+
+    .float-controls{position:absolute;display:none;gap:6px;background:#101721;border:1px solid #2a3340;border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:10;pointer-events:auto}
+    .float-controls .icon-btn{width:44px;height:44px}
+
+    .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#101721;border:1px solid #2a3340;color:#e8eef6;padding:8px 12px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.45);z-index:6;display:none;font-size:13px}
+
+.saved-panel{position:fixed; inset:auto 10px 86px 10px; background:#0f141b; border:1px solid #2a3340; border-radius:12px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); display:none; z-index:6; max-height:50vh; overflow:auto}
+.saved-panel h2{margin:0 0 8px; font-size:14px}
+.saved-list{max-height:220px; overflow:auto; display:grid; gap:6px}
+.saved-item{display:flex; justify-content:space-between; align-items:center; background:#121923; border:1px solid #233042; border-radius:8px; padding:6px 8px}
+.saved-item .name{font-size:13px}
+.btn.small{padding:6px 10px; font-size:12px; border-radius:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <button class="btn icon-btn" id="run" title="Run" aria-label="Run">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+      </button>
+      <button class="btn icon-btn" id="stop" title="Stop" aria-label="Stop">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+      </button>
+      <label>Body</label><input id="bodyColor" type="color" value="#e11d48">
+      <label>Glass</label><input id="glassColor" type="color" value="#7dd3fc">
+      <label>Rims</label><input id="rimColor" type="color" value="#d1d5db">
+      <label>Speed</label>
+      <select id="speed" class="btn">
+        <option value="60">Slow</option>
+        <option value="120" selected>Normal</option>
+        <option value="200">Fast</option>
+      </select>
+      <label>Snap</label>
+      <select id="snap" class="btn"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select>
+      <button class="btn" id="save3d">Save</button>
+      <button class="btn" id="openSaved3d">My Saved Cars</button>
+      <button class="btn" id="clear">Clear</button>
+    </div>
+    <div class="legend">Three.js concept: tap a part below, then tap ground to place. Drag to move; use controls to rotate or nudge. Run moves car; wheels rotate.</div>
+  </header>
+
+  <main>
+    <div class="stage-wrap">
+      <div class="board" id="board">
+        <div id="floatControls" class="float-controls" aria-label="Selection tools">
+          <button class="btn icon-btn" id="ctrlRotateL" title="Rotate Left" aria-label="Rotate Left">⟲</button>
+          <button class="btn icon-btn" id="ctrlRotateR" title="Rotate Right" aria-label="Rotate Right">⟳</button>
+          <button class="btn icon-btn" id="ctrlClone" title="Clone" aria-label="Clone">⧉</button>
+          <button class="btn icon-btn" id="ctrlDelete" title="Delete" aria-label="Delete">⌫</button>
+        </div>
+        <div id="toast" class="toast" aria-live="polite"></div>
+        <div id="savedPanel3d" class="saved-panel" role="dialog" aria-modal="true" aria-label="Saved Cars">
+          <h2>My Cars (3D)</h2>
+          <div id="savedList3d" class="saved-list"></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button class="btn small" id="closeSaved3d">Close</button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="palette-bar">
+    <div class="palette-scroll" id="palette">
+      <div class="part" data-kind="body" title="Car Body"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="2"/></svg></div>
+      <div class="part" data-kind="wheel" title="Wheel"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="#0f141b"/></svg></div>
+      <div class="part" data-kind="window" title="Window"><svg viewBox="0 0 24 24"><path d="M6 9c3-1 9-1 12 0v4c0 1-.7 2-1.8 2-6 .8-9.4.8-12.4 0C2.7 14.7 4 13 4 13l2-4z"/></svg></div>
+      <div class="part" data-kind="spoiler" title="Spoiler"><svg viewBox="0 0 24 24"><path d="M4 10h12c1.5 0 2.5-.6 3-1.2"/></svg></div>
+    </div>
+  </div>
+
+  <script type="module-shim">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+    const board = document.getElementById('board');
+    const floatControls = document.getElementById('floatControls');
+    const toast = document.getElementById('toast');
+
+    const btnRun = document.getElementById('run');
+    const btnStop = document.getElementById('stop');
+    const btnClear = document.getElementById('clear');
+    const ctrlRotateL = document.getElementById('ctrlRotateL');
+    const ctrlRotateR = document.getElementById('ctrlRotateR');
+    const ctrlClone = document.getElementById('ctrlClone');
+    const ctrlDelete = document.getElementById('ctrlDelete');
+
+    const bodyColor = document.getElementById('bodyColor');
+    const glassColor = document.getElementById('glassColor');
+    const rimColor = document.getElementById('rimColor');
+    const speedSel = document.getElementById('speed');
+    const snapSel = document.getElementById('snap');
+    const btnSave3d = document.getElementById('save3d');
+    const btnOpenSaved3d = document.getElementById('openSaved3d');
+    const savedPanel3d = document.getElementById('savedPanel3d');
+    const savedList3d = document.getElementById('savedList3d');
+    const closeSaved3d = document.getElementById('closeSaved3d');
+
+    // Scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1016);
+
+    const camera = new THREE.PerspectiveCamera(55, 16/9, 0.1, 1000);
+    camera.position.set(18, 14, 22);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(board.clientWidth, board.clientHeight);
+    board.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2, 0);
+    controls.enableDamping = true;
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 0.8); scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(10,20,10); dir.castShadow = true; scene.add(dir);
+
+    // Ground
+    const groundGeo = new THREE.PlaneGeometry(200, 200);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0f141b, roughness: 1, metalness: 0 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI/2;
+    ground.receiveShadow = true;
+    ground.userData.isGround = true;
+    scene.add(ground);
+
+    const grid = new THREE.GridHelper(200, 80, 0x223344, 0x19232e); grid.position.y = 0.001; scene.add(grid);
+
+    // Materials
+    const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(bodyColor.value), roughness: 0.6, metalness: 0.1 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(rimColor.value), roughness: 0.3, metalness: 0.6 });
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(glassColor.value), metalness: 0, roughness: 0.1, transmission: 0.6, thickness: 0.5, transparent: true });
+
+    bodyColor.addEventListener('input', ()=>{ bodyMat.color.set(bodyColor.value); });
+    glassColor.addEventListener('input', ()=>{ glassMat.color.set(glassColor.value); });
+    rimColor.addEventListener('input', ()=>{ rimMat.color.set(rimColor.value); });
+
+    // Picking and drag
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let selected = null;
+    let dragging = false;
+    let dragOffset = new THREE.Vector3();
+
+    function snapToGrid(v){ const step = 1 * (parseInt(snapSel?.value||'1')||1); return Math.round(v/step)*step; }
+    function getIntersectOnGround(clientX, clientY){
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const inter = raycaster.intersectObject(ground, false)[0];
+      if(!inter) return null;
+      inter.point.x = snapToGrid(inter.point.x);
+      inter.point.z = snapToGrid(inter.point.z);
+      return inter.point;
+    }
+
+    function pickObject(clientX, clientY){
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(selectables, true);
+      if(hits.length){
+        const root = findSelectableRoot(hits[0].object);
+        return root;
+      }
+      return null;
+    }
+
+    function findSelectableRoot(obj){
+      let cur = obj;
+      while(cur){ if(cur.userData.selectable) return cur; cur = cur.parent; }
+      return null;
+    }
+
+    function showToast(msg, ms=1000){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', ms); }
+
+    // Scene content helpers
+    const selectables = [];
+    function registerSelectable(group){ group.userData.selectable = true; selectables.push(group); }
+
+    function createBody(){
+      const group = new THREE.Group();
+      group.userData.kind = 'body';
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 3.4), bodyMat.clone()); hull.castShadow = true; hull.position.y = 2;
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(4, 1.4, 3.0), bodyMat.clone()); cabin.position.set(0.6, 3, 0); cabin.castShadow = true;
+      const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 2.8), glassMat.clone()); windshield.position.set(1.6, 3.1, 0);
+      // fender hints similar to 2D bulges: small dark quads near wheel zones
+      const fenderRear = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x151b24, roughness: 1 })); fenderRear.position.set(-1.8, 2.1, 1.6);
+      const fenderFront = fenderRear.clone(); fenderFront.position.set(2.3, 2.1, 1.6);
+      const fenderRear2 = fenderRear.clone(); fenderRear2.position.z = -1.6;
+      const fenderFront2 = fenderFront.clone(); fenderFront2.position.z = -1.6;
+      group.add(hull, cabin, windshield, fenderRear, fenderFront, fenderRear2, fenderFront2);
+      group.position.y = 0;
+      group.userData.type = 'part';
+      registerSelectable(group);
+      return group;
+    }
+
+    function createWheel(){
+      const group = new THREE.Group();
+      group.userData.kind = 'wheel';
+      const torus = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.45, 16, 28), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 }));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.12, 8, 20), rimMat.clone());
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 16), rimMat.clone()); hub.rotation.z = Math.PI/2;
+      torus.castShadow = rim.castShadow = hub.castShadow = true;
+      group.add(torus, rim, hub);
+      group.userData.spin = { angle: 0 };
+      registerSelectable(group);
+      return group;
+    }
+
+    function createWindow(){
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.2, 2.6), glassMat.clone());
+      const streak = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent:true, opacity:0.25 }));
+      streak.position.set(0.2, 0.2, 1.31); streak.rotation.y = 0.1;
+      const group = new THREE.Group(); group.add(pane, streak); group.userData.kind='window'; registerSelectable(group); return group;
+    }
+
+    function createSpoiler(){
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 0.6), bodyMat.clone());
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), bodyMat.clone()); legL.position.set(-1.3, -0.4, 0);
+      const legR = legL.clone(); legR.position.x = 1.3;
+      const group = new THREE.Group(); group.add(wing, legL, legR); group.userData.kind='spoiler'; registerSelectable(group); return group;
+    }
+
+    function createPart(kind){
+      switch(kind){
+        case 'body': return createBody();
+        case 'wheel': return createWheel();
+        case 'window': return createWindow();
+        case 'spoiler': return createSpoiler();
+        default: return createBody();
+      }
+    }
+
+    // Car grouping for Run
+    function wrapIntoCarIfNeeded(){
+      const hasCar = scene.children.some(n=>n.userData && n.userData.isCar);
+      const parts = scene.children.filter(n=>n.userData && n.userData.selectable);
+      if(hasCar || parts.length===0) return scene.children.find(n=>n.userData && n.userData.isCar);
+      const car = new THREE.Group(); car.userData.isCar = true; scene.add(car);
+      parts.forEach(p=>{ scene.remove(p); car.add(p); });
+      return car;
+    }
+
+    function ensureCar(){
+      let car = scene.children.find(n=>n.userData && n.userData.isCar);
+      if(!car){ car = new THREE.Group(); car.userData.isCar = true; scene.add(car); }
+      return car;
+    }
+
+    // Place and drag
+    let pendingKind = null;
+    const paletteEl = document.getElementById('palette');
+    paletteEl.querySelectorAll('.part').forEach(p=>{
+      p.addEventListener('click', ()=>{ pendingKind = p.dataset.kind; showToast(`Tap ground to place: ${pendingKind}`); });
+    });
+
+    function setSelected(obj){ selected = obj; updateControlsVisibility(); }
+
+    function updateControlsVisibility(){
+      if(!selected){ floatControls.style.display='none'; return; }
+      floatControls.style.display='flex';
+      // place near object screen position
+      const rect = renderer.domElement.getBoundingClientRect();
+      const pos = selected.getWorldPosition(new THREE.Vector3());
+      pos.project(camera);
+      const left = (pos.x * 0.5 + 0.5) * rect.width + rect.left;
+      const top = (-pos.y * 0.5 + 0.5) * rect.height + rect.top;
+      floatControls.style.left = Math.max(8, Math.min(left - floatControls.offsetWidth/2, rect.right - rect.left - floatControls.offsetWidth - 8)) + 'px';
+      floatControls.style.top = Math.max(8, top - floatControls.offsetHeight - 8) + 'px';
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e)=>{
+      // ignore clicks that originate on the palette bar
+      const paletteRect = paletteEl.getBoundingClientRect();
+      if(e.clientY >= paletteRect.top) return;
+      const onGround = getIntersectOnGround(e.clientX, e.clientY);
+      if(pendingKind && onGround){
+        const part = createPart(pendingKind);
+        part.position.copy(onGround);
+        // lift based on type
+        if(part.userData.kind==='body') part.position.y = 0.0;
+        if(part.userData.kind==='wheel') part.position.y = 1.1;
+        if(part.userData.kind==='window') part.position.y = 2.6;
+        if(part.userData.kind==='spoiler') part.position.y = 2.2;
+        scene.add(part);
+        registerSelectable(part);
+        setSelected(part);
+        pendingKind = null;
+        e.preventDefault();
+        return;
+      }
+      // pick existing
+      const hit = pickObject(e.clientX, e.clientY);
+      if(hit){
+        setSelected(hit);
+        dragging = true;
+        const hitPoint = getIntersectOnGround(e.clientX, e.clientY);
+        if(hitPoint){ dragOffset.copy(hit.position).sub(hitPoint); }
+      } else {
+        setSelected(null);
+      }
+    });
+
+    window.addEventListener('keydown', (e)=>{
+      if(!selected) return;
+      if(e.key.toLowerCase()==='r'){ selected.rotation.y += Math.PI/2; updateControlsVisibility(); }
+      else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+        const delta = (parseInt(snapSel?.value||'1')||1);
+        const d={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]}[e.key];
+        selected.position.x = snapToGrid(selected.position.x + d[0]);
+        selected.position.z = snapToGrid(selected.position.z + d[1]);
+        updateControlsVisibility();
+        e.preventDefault();
+      } else if(e.key==='Delete' || e.key==='Backspace'){ scene.remove(selected); setSelected(null); }
+    });
+
+    window.addEventListener('pointermove', (e)=>{
+      if(!dragging || !selected) return;
+      const p = getIntersectOnGround(e.clientX, e.clientY);
+      if(!p) return;
+      selected.position.copy(p.clone().add(dragOffset));
+      updateControlsVisibility();
+    });
+    window.addEventListener('pointerup', ()=>{ dragging=false; });
+
+    // Controls
+    ctrlRotateL.addEventListener('click', ()=>{ if(!selected) return; selected.rotation.y -= Math.PI/2; updateControlsVisibility(); });
+    ctrlRotateR.addEventListener('click', ()=>{ if(!selected) return; selected.rotation.y += Math.PI/2; updateControlsVisibility(); });
+    ctrlClone.addEventListener('click', ()=>{ if(!selected) return; const clone = selected.clone(true); clone.traverse(n=>{ if(n.material && n.material.clone) n.material = n.material.clone(); }); clone.position.add(new THREE.Vector3(0.6,0,0.6)); scene.add(clone); setSelected(clone); updateControlsVisibility(); });
+    ctrlDelete.addEventListener('click', ()=>{ if(!selected) return; scene.remove(selected); const idx = selectables.indexOf(selected); if(idx>=0) selectables.splice(idx,1); setSelected(null); });
+
+    btnClear.addEventListener('click', ()=>{
+      // remove all selectables and car group
+      [...scene.children].forEach(n=>{ if(n.userData && (n.userData.selectable || n.userData.isCar)) scene.remove(n); });
+      selectables.splice(0, selectables.length);
+      setSelected(null);
+    });
+
+    // Save/Load (3D) similar to 2D localStorage
+    const STORAGE_KEY_3D='cargame3d:savedCars:v1';
+    function loadSaved3d(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY_3D)||'[]'); }catch{ return []; } }
+    function saveAll3d(list){ localStorage.setItem(STORAGE_KEY_3D, JSON.stringify(list)); }
+    function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+
+    function collectLooseParts(){ return scene.children.filter(n=>n.userData && n.userData.selectable); }
+    function serializePart(node){ return { kind: node.userData.kind, x: node.position.x, y: node.position.y, z: node.position.z, ry: node.rotation.y }; }
+    function serializeCarGroup(car){ const parts=[]; car.children.forEach(ch=>{ if(ch.userData && ch.userData.kind) parts.push(serializePart(ch)); }); return parts; }
+    function serializeCurrent(){ const car = scene.children.find(n=>n.userData && n.userData.isCar); if(car) return serializeCarGroup(car); const loose = collectLooseParts(); if(loose.length===0) return null; return loose.map(serializePart); }
+
+    function clearSceneKeepGround(){ [...scene.children].forEach(n=>{ if(n!==ground && n!==grid && !(n.isLight)) { if(!(n.userData && n.userData.preserve)) scene.remove(n); } }); }
+
+    function applyColorsTemporarily(colors){ bodyMat.color.set(colors.body); rimMat.color.set(colors.rim); glassMat.color.set(colors.glass); }
+
+    function promptAndSave3d(){ const name=prompt('Name this car (3D):','My 3D Car'); if(!name) return; const parts=serializeCurrent(); if(!parts || parts.length===0){ alert('Nothing to save. Place some parts.'); return; } const entry={ id:uid(), name, colors:{ body:bodyColor.value, glass:glassColor.value, rim:rimColor.value }, parts }; const list=loadSaved3d(); list.push(entry); saveAll3d(list); alert('Saved as "'+name+'"'); }
+
+    function renderSavedList3d(){ const list=loadSaved3d(); savedList3d.innerHTML=''; if(list.length===0){ savedList3d.innerHTML='<div style="padding:8px;color:#9fb0c2">No saved cars yet.</div>'; return; } list.forEach(e=>{ const row=document.createElement('div'); row.className='saved-item'; const name=document.createElement('div'); name.className='name'; name.textContent=e.name; const actions=document.createElement('div'); actions.style.display='flex'; actions.style.gap='6px'; const loadBtn=document.createElement('button'); loadBtn.className='btn small'; loadBtn.textContent='Load'; const delBtn=document.createElement('button'); delBtn.className='btn small'; delBtn.textContent='Delete'; loadBtn.addEventListener('click', ()=>loadCarEntry3d(e)); delBtn.addEventListener('click', ()=>{ const all=loadSaved3d().filter(x=>x.id!==e.id); saveAll3d(all); renderSavedList3d(); }); actions.append(loadBtn, delBtn); row.append(name, actions); savedList3d.append(row); }); }
+
+    function openSaved3d(){ savedPanel3d.style.display='block'; renderSavedList3d(); }
+    function closeSavedPanel3d(){ savedPanel3d.style.display='none'; }
+    closeSaved3d.addEventListener('click', closeSavedPanel3d);
+    btnOpenSaved3d.addEventListener('click', openSaved3d);
+    btnSave3d.addEventListener('click', promptAndSave3d);
+
+    function instantiatePart(p){ const node=createPart(p.kind); node.position.set(p.x, p.y, p.z); node.rotation.y = p.ry||0; return node; }
+    function loadCarEntry3d(entry){ stop(); setSelected(null); clearSceneKeepGround(); applyColorsTemporarily(entry.colors); const car=ensureCar(); entry.parts.forEach(p=>{ const node=instantiatePart(p); car.add(node); }); }
+
+    // Run/Stop animation
+    let animId = null; let lastT = 0; let vx = parseFloat(speedSel.value) || 120; // units per second (scene units)
+    speedSel.addEventListener('change', ()=>{ vx = parseFloat(speedSel.value)||120; });
+
+    function collectWheels(group){ const wheels=[]; group.traverse(n=>{ if(n.userData && n.userData.kind==='wheel') wheels.push(n); }); return wheels; }
+
+    function start(){ if(animId) return; lastT = performance.now(); animId = requestAnimationFrame(tick); }
+    function stop(){ if(animId){ cancelAnimationFrame(animId); animId=null; } }
+
+    btnRun.addEventListener('click', ()=>{
+      // Assemble preset if nothing exists, similar to 2D assemble
+      const anyParts = scene.children.some(n=>n.userData && n.userData.selectable);
+      const anyCars = scene.children.some(n=>n.userData && n.userData.isCar);
+      if(!anyParts && !anyCars){
+        const origin = new THREE.Vector3(-6,0,0);
+        const car = ensureCar();
+        const shadow = new THREE.Mesh(new THREE.CircleGeometry(6.8, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent:true, opacity:0.2 }));
+        shadow.rotation.x = -Math.PI/2; shadow.position.set(origin.x+3.1, 0.01, origin.z);
+        scene.add(shadow);
+        const body = createBody(); body.position.copy(origin.clone().add(new THREE.Vector3(0,0,0))); car.add(body);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.4, 2.8), bodyMat.clone()); roof.position.set(origin.x+3.6, 3.4, origin.z); car.add(roof);
+        const win = createWindow(); win.position.set(origin.x+3.7, 2.4, origin.z); car.add(win);
+        const rear = createWheel(); rear.position.set(origin.x+1.2,1.1,origin.z+1.6); car.add(rear);
+        const front = createWheel(); front.position.set(origin.x+5.0,1.1,origin.z+1.6); car.add(front);
+        const rear2 = createWheel(); rear2.position.set(origin.x+1.2,1.1,origin.z-1.6); car.add(rear2);
+        const front2 = createWheel(); front2.position.set(origin.x+5.0,1.1,origin.z-1.6); car.add(front2);
+      }
+      // If loose parts exist, wrap into a car once
+      const car = wrapIntoCarIfNeeded() || ensureCar();
+      // Ensure car starts slightly left
+      car.position.x = Math.min(car.position.x, -15);
+      start();
+    });
+    btnStop.addEventListener('click', ()=>{ stop(); });
+
+    function tick(ts){
+      const dt = (ts - lastT) / 1000; lastT = ts;
+      controls.update();
+
+      // Move car(s) and rotate their wheels
+      scene.children.forEach(node=>{
+        if(!(node.userData && node.userData.isCar)) return;
+        node.position.x += vx * dt / 10; // scale down speed to scene units
+        const wheels = collectWheels(node);
+        const circumference = 2 * Math.PI * 1.1; // torus major radius ~1.1
+        const dAngle = (vx * dt / 10) / circumference * 2 * Math.PI;
+        wheels.forEach(w=>{ w.rotation.z -= dAngle; });
+        if(node.position.x > 25) node.position.x = -25;
+      });
+
+      renderer.render(scene, camera);
+      animId = requestAnimationFrame(tick);
+    }
+
+    // Resize
+    function onResize(){
+      const w = board.clientWidth, h = board.clientHeight;
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      updateControlsVisibility();
+    }
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    // Initial camera look
+    renderer.render(scene, camera);
+  </script>
+</body>
+</html> 

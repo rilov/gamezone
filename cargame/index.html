@@ -10,7 +10,11 @@
     a{color:#22d3ee}
   </style>
   <script>
-    window.location.replace('./cargame.html');
+    (function(){
+      const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (Math.min(screen.width, screen.height) <= 820);
+      const target = isMobile ? './mobile.html' : './mobile.html';
+      window.location.replace(target);
+    })();
   </script>
 </head>
 <body>
