@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Car Builder — Auto Demo</title>
+<style>
+  :root { --bg:#0e1116; --panel:#151a21; --accent:#22d3ee; --grid:#222a33; --grid-size:28; }
+  *{box-sizing:border-box}
+  body{margin:0;color:#e8eef6;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:grid;grid-template-columns:320px 1fr;height:100vh}
+  aside{background:var(--panel);border-right:1px solid #000;padding:14px;overflow:auto}
+  h1{font-size:18px;margin:0 0 8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .btn{border:1px solid #2a3340;background:#1c2430;color:#e8eef6;padding:8px 10px;border-radius:10px;cursor:pointer}
+  .btn:hover{background:#222c3a}
+  .icon-btn{display:inline-grid;place-items:center;width:44px;height:44px;padding:0}
+  .btn svg{width:22px;height:22px;display:block;fill:currentColor}
+  a.nav{display:inline-grid;place-items:center;border:1px solid #2a3340;background:#101721;color:#cbd5e1;border-radius:10px;height:44px;padding:0 10px;text-decoration:none}
+  .legend{font-size:12px;color:#a9b3bf;line-height:1.5;margin-top:6px}
+  main{position:relative;overflow:hidden}
+  .stage-wrap{width:100%;height:100%;display:grid;place-items:center}
+  .board{width:min(1200px,92vw);height:min(60vh,720px);border:1px solid #000;border-radius:14px;background:#0f141b;position:relative;box-shadow:inset 0 0 0 1px #000,0 10px 40px rgba(0,0,0,.45)}
+  .grid{position:absolute;inset:0;background:linear-gradient(0deg,var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:calc(var(--grid-size)*1px) calc(var(--grid-size)*1px);opacity:.55;pointer-events:none}
+  svg#canvas{position:absolute;inset:0}
+  .demo-disabled{opacity:.6; pointer-events:none; filter:grayscale(20%)}
+  .palette{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .part{background:#0f141b;border:1px dashed #2a3340;border-radius:10px;padding:10px;display:grid;place-items:center;min-height:58px}
+  .part svg{width:28px;height:28px}
+  .demo-cursor{position:absolute; width:18px; height:18px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,.4); transform:translate(-50%,-50%); z-index:25; display:none}
+  .demo-toast{position:absolute; left:50%; bottom:10px; transform:translateX(-50%); background:#101721; border:1px solid #2a3340; color:#e8eef6; padding:8px 12px; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.45); z-index:26; display:none; font-size:13px}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Auto Demo</h1>
+  <div class="row">
+    <a href="./cargame.html" class="nav" title="Go to Custom Build" id="toCustom">Custom Build</a>
+  </div>
+  <div class="row">
+    <button class="btn icon-btn" id="demoPlay" aria-label="Play Demo" title="Play Demo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+    </button>
+    <button class="btn icon-btn" id="demoStop" aria-label="Stop Demo" title="Stop Demo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+    </button>
+  </div>
+  <div class="legend">Read-only tutorial. Watch how a car is built and runs.</div>
+  <h1>Controls (preview)</h1>
+  <div class="row demo-disabled">
+    <button class="btn icon-btn" title="Run"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+    <button class="btn icon-btn" title="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    <button class="btn icon-btn" title="New Car"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></button>
+    <button class="btn icon-btn" title="Save"><svg viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg></button>
+  </div>
+  <h1>Parts (preview)</h1>
+  <div class="palette demo-disabled">
+    <div class="part" title="Car Body"><svg viewBox="0 0 24 24"><path d="M3 14c1.5-4.5 5-7 9-7h4c2 0 3 1.2 4 3l1 1v4a2 2 0 0 1-2 2h-1.2a2 2 0 0 1-2-2H8.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1z"/></svg></div>
+    <div class="part" title="Wheel"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="#0f141b"/></svg></div>
+    <div class="part" title="Window"><svg viewBox="0 0 24 24"><path d="M6 9c3-1 9-1 12 0v4c0 1-.7 2-1.8 2-6 .8-9.4.8-12.4 0C2.7 14.7 4 13 4 13l2-4z"/></svg></div>
+    <div class="part" title="Grille"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="3"/></svg></div>
+    <div class="part" title="Headlight"><svg viewBox="0 0 24 24"><rect x="5" y="9" width="10" height="6" rx="3"/></svg></div>
+    <div class="part" title="Taillight"><svg viewBox="0 0 24 24"><rect x="6" y="10" width="8" height="5" rx="2"/></svg></div>
+  </div>
+</aside>
+
+<main>
+  <div class="stage-wrap">
+    <div class="board">
+      <div class="grid"></div>
+      <svg id="canvas" viewBox="0 0 1200 600" aria-label="Demo area">
+        <defs>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.45"/>
+          </filter>
+          <linearGradient id="glassGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#bfe6ff" stop-opacity=".85"/>
+            <stop offset=".5" stop-color="#8bcaf0" stop-opacity=".6"/>
+            <stop offset="1" stop-color="#5aa6d8" stop-opacity=".4"/>
+          </linearGradient>
+          <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#f5f5f5"/>
+            <stop offset=".3" stop-color="#a9a9a9"/>
+            <stop offset=".6" stop-color="#ededed"/>
+            <stop offset="1" stop-color="#a0a0a0"/>
+          </linearGradient>
+          <linearGradient id="bodyShine" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+            <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.15"/>
+            <stop offset="0.65" stop-color="#ffffff" stop-opacity="0.06"/>
+            <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="tyreGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#222"/>
+            <stop offset="0.6" stop-color="#111"/>
+            <stop offset="1" stop-color="#000"/>
+          </radialGradient>
+        </defs>
+      </svg>
+      <div id="demoCursor" class="demo-cursor" aria-hidden="true"></div>
+      <div id="demoToast" class="demo-toast" aria-live="polite"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(()=>{
+  const SVGNS="http://www.w3.org/2000/svg";
+  const canvas=document.getElementById('canvas');
+  const board=document.querySelector('.board');
+  const demoPlay=document.getElementById('demoPlay');
+  const demoStop=document.getElementById('demoStop');
+  const toCustom=document.getElementById('toCustom');
+  const demoToast=document.getElementById('demoToast');
+
+  const GS=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-size'));
+  const attr=(el,o)=>{ for(const k in o) el.setAttribute(k,o[k]); return el; };
+  const svg=(tag,props)=>attr(document.createElementNS(SVGNS,tag),props);
+  function svgGroup(kind){ const g=document.createElementNS(SVGNS,'g'); g.dataset.kind=kind; return g; }
+  function setTranslate(el,tx,ty){ const t=el.getAttribute('transform')||""; const m=t.match(/rotate\((-?\d+(\.\d+)?)\)/); const rot=m?m[1]:0; el.setAttribute('transform',`translate(${tx},${ty}) rotate(${rot})`); }
+  function rotateDelta(el,deg){ const t=el.getAttribute('transform')||""; const mt=t.match(/translate\((-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)\)/); const tx=mt?parseFloat(mt[1]):0, ty=mt?parseFloat(mt[3]):0; const mr=t.match(/rotate\((-?\d+(\.\d+)?)\)/); const rot=((mr?parseFloat(mr[1]):0)+deg)%360; el.setAttribute('transform',`translate(${tx},${ty}) rotate(${rot})`); }
+
+  const WHEEL_RADIUS=48;
+  function makeBody(){
+    const g=svgGroup('body');
+    const hull=svg('path',{d:
+      "M 0 70 C 30 25, 150 0, 230 0 L 420 0 C 520 0, 610 18, 640 60 L 660 78 L 660 116 C 660 136, 642 152, 616 154 L 45 154 C 18 152, 0 138, 0 116 Z",
+      fill:'#e11d48',filter:"url(#shadow)"});
+    const lowerShade=svg('path',{d:"M 18 130 C 180 152, 500 152, 642 130 L 642 146 L 18 146 Z",fill:"rgba(0,0,0,.08)"});
+    const shine=svg('path',{d:"M 36 18 C 180 -8, 520 -8, 620 18 C 640 26, 650 44, 632 56 C 520 70, 220 70, 100 56 C 72 44, 60 26, 36 18 Z",fill:"url(#bodyShine)"});
+    const trim=svg('rect',{x:12,y:124,width:636,height:8,rx:4,ry:4,fill:"rgba(0,0,0,.28)"});
+    const f1=svg('path',{d:"M 90 118 C 130 96, 180 96, 220 118",fill:"none",stroke:"rgba(0,0,0,.35)","stroke-width":4});
+    const f2=svg('path',{d:"M 470 118 C 510 96, 560 96, 600 118",fill:"none",stroke:"rgba(0,0,0,.35)","stroke-width":4});
+    g.append(hull,lowerShade,shine,trim,f1,f2); return g;
+  }
+  function makeRoof(){ const g=svgGroup('roof'); g.append(svg('path',{d:"M 140 0 C 220 -20, 460 -20, 540 0 L 560 10 L 560 30 C 560 40, 550 50, 540 55 C 460 70, 220 70, 140 55 C 130 50, 120 40, 120 30 L 120 10 Z",fill:'#e11d48',filter:"url(#shadow)"})); return g; }
+  function makeWindow(){ const g=svgGroup('window'); const glass=svg('path',{d:"M 160 10 C 240 -5, 440 -5, 520 10 L 520 45 C 520 55, 510 65, 500 68 C 420 80, 260 80, 180 68 C 170 65, 160 55, 160 45 Z",fill:"url(#glassGrad)",opacity:"0.95",filter:"url(#shadow)"}); const tint=svg('path',{d:"M 160 10 C 240 -5, 440 -5, 520 10 L 520 45 C 520 55, 510 65, 500 68 C 420 80, 260 80, 180 68 C 170 65, 160 55, 160 45 Z",fill:'#7dd3fc',opacity:"0.35"}); const streak=svg('path',{d:"M 190 20 C 260 10, 430 10, 500 20 L 500 24 C 430 34, 260 34, 190 24 Z",fill:"#fff",opacity:"0.25"}); g.append(glass,tint,streak); return g; }
+  function makeWheel(){ const outer=svgGroup('wheel'); const spin=document.createElementNS(SVGNS,'g'); spin.classList.add('spin'); const tyre=svg('circle',{cx:0,cy:0,r:WHEEL_RADIUS,fill:"url(#tyreGrad)",stroke:"#0a0a0a","stroke-width":2,filter:"url(#shadow)"}); const brake=svg('circle',{cx:0,cy:0,r:22,fill:"#bbb",opacity:"0.6"}); const rim=svg('circle',{cx:0,cy:0,r:34,fill:'#d1d5db',stroke:"#ffffff","stroke-opacity":"0.15","stroke-width":2}); spin.append(tyre,brake,rim); for(let i=0;i<10;i++){ spin.append(svg('rect',{x:-2,y:-30,width:4,height:28,fill:"#888",rx:1,ry:1,transform:`rotate(${i*36})`})); } const hub=svg('circle',{cx:0,cy:0,r:8,fill:"#666"}); spin.append(hub); outer.append(spin); return outer; }
+  function makeHeadlight(){ const g=svgGroup('headlight'); g.append(svg('rect',{x:0,y:0,rx:8,ry:8,width:34,height:18,fill:"#fef3c7",stroke:"#eab308","stroke-width":2,filter:"url(#shadow)"})); return g; }
+  function makeTaillight(){ const g=svgGroup('taillight'); g.append(svg('rect',{x:0,y:0,rx:8,ry:8,width:34,height:18,fill:"#fecaca",stroke:"#ef4444","stroke-width":2,filter:"url(#shadow)"})); return g; }
+  function makeGrille(){ const g=svgGroup('grille'); g.append(svg('rect',{x:0,y:0,rx:10,ry:10,width:80,height:26,fill:"url(#chrome)",filter:"url(#shadow)"})); for(let i=0;i<5;i++) g.append(svg('rect',{x:8+i*14,y:4,width:8,height:18,fill:"#1f2937"})); return g; }
+  function makeDoorLine(){ const g=svgGroup('doorline'); g.append(svg('path',{d:"M 0 0 C 40 -10, 120 -10, 160 0",stroke:"#1f2937","stroke-width":3,fill:"none"})); return g; }
+  function makeMirror(){ const g=svgGroup('mirror'); g.append(svg('rect',{x:0,y:0,width:16,height:10,rx:3,ry:3,fill:'#e11d48',filter:"url(#shadow)"}), svg('rect',{x:2,y:2,width:12,height:6,rx:2,ry:2,fill:'#7dd3fc'})); return g; }
+  function makeSpoiler(){ const g=svgGroup('spoiler'); g.append(svg('path',{d:"M 0 0 L 80 0 C 90 0, 96 -8, 96 -14 C 96 -18, 92 -22, 88 -22 L 0 -22 Z",fill:'#e11d48',filter:"url(#shadow)"})); return g; }
+  function makeGroundShadow(){ return svg('ellipse',{cx:310,cy:180,rx:420,ry:36,fill:"rgba(0,0,0,.22)"}); }
+
+  // Animation state
+  const CARS=[]; let animId=null; let lastT=null; let vx=220;
+  function collectWheelNodes(group){ return [...group.querySelectorAll('[data-kind="wheel"] > .spin')]; }
+  function registerCar(group, x=0, y=0){ group.setAttribute('transform',`translate(${x},${y})`); const car={ group, wheelNodes: collectWheelNodes(group), angle:0, x, y }; if(!CARS.find(c=>c.group===group)) CARS.push(car); return car; }
+  function startAnim(){ if(animId) return; lastT=performance.now(); animId=requestAnimationFrame(tick); }
+  function stopAnim(){ if(animId){ cancelAnimationFrame(animId); animId=null; } }
+  function tick(ts){ const dt=(ts-lastT)/1000; lastT=ts; const dx=vx*dt; const circumference=2*Math.PI*WHEEL_RADIUS; const dAngle=(dx/circumference)*360; const viewW=1200; for(const car of CARS){ car.x += vx*dt; car.group.setAttribute('transform',`translate(${car.x},${car.y})`); car.angle=(car.angle+dAngle)%360; car.wheelNodes.forEach(spin=>spin.setAttribute('transform',`rotate(${car.angle})`)); if(car.x>viewW+200){ car.x=-400; } } animId=requestAnimationFrame(tick); }
+
+  // Demo cursor and sequence
+  const demoCursor=document.getElementById('demoCursor');
+  function getCenter(el){ const r=el.getBoundingClientRect(); return {x:r.left + r.width/2, y:r.top + r.height/2}; }
+  function positionCursor(pageX,pageY){ const boardRect=board.getBoundingClientRect(); demoCursor.style.left=(pageX - boardRect.left)+'px'; demoCursor.style.top=(pageY - boardRect.top)+'px'; }
+  function moveCursorTo(x,y,duration=600){ return new Promise(resolve=>{ const startRect=demoCursor.getBoundingClientRect(); const startX=startRect.left+startRect.width/2, startY=startRect.top+startRect.height/2; const t0=performance.now(); function step(t){ const p=Math.min(1,(t-t0)/duration); const nx=startX + (x-startX)*p; const ny=startY + (y-startY)*p; positionCursor(nx,ny); if(p<1) requestAnimationFrame(step); else resolve(); } requestAnimationFrame(step); }); }
+  function say(msg, ms=1400){ return new Promise(resolve=>{ demoToast.textContent=msg; demoToast.style.display='block'; setTimeout(()=>{ demoToast.style.display='none'; resolve(); }, ms); }); }
+  function clearCanvasKeepDefs(){ const defs=canvas.querySelector('defs'); const keep=new Set([defs]); [...canvas.children].forEach(n=>{ if(!keep.has(n)) canvas.removeChild(n); }); }
+
+  function setupDemo(){ if(canvas.querySelector('g.car')) return; const g=document.createElementNS(SVGNS,'g'); g.classList.add('car'); canvas.appendChild(g); const originX=120, originY=260; const shadow=makeGroundShadow(); setTranslate(shadow,originX,originY); const body=makeBody(); setTranslate(body,originX,originY); const roof=makeRoof(); setTranslate(roof,originX+60,originY-58); const win =makeWindow(); setTranslate(win, originX+70,originY-56); const rear=makeWheel(); setTranslate(rear,originX+120,originY+120); const front=makeWheel(); setTranslate(front,originX+500,originY+120); const head=makeHeadlight(); setTranslate(head,originX+635,originY+40); const tail=makeTaillight(); setTranslate(tail,originX-10,originY+48); const grill=makeGrille(); setTranslate(grill,originX+588,originY+64); const mir =makeMirror(); setTranslate(mir, originX+520,originY-26); const spl =makeSpoiler(); setTranslate(spl, originX-6, originY-8); const dl  =makeDoorLine(); setTranslate(dl,  originX+250,originY+12); [shadow,body,roof,win,rear,front,head,tail,grill,mir,spl,dl].forEach(n=>g.appendChild(n)); registerCar(g, -300, 0); }
+
+  async function runDemo(){
+    // clear canvas but keep defs
+    clearCanvasKeepDefs();
+    demoCursor.style.display='block';
+    // Show creating a new car and naming
+    const newBtn=document.querySelector('aside .row.demo-disabled button[title="New Car"]'); if(newBtn){ const cNew=newBtn.getBoundingClientRect(); await say('Click + to create a new car'); await moveCursorTo(cNew.left+cNew.width/2, cNew.top+cNew.height/2, 600); await say('Enter name: "My Demo Car"', 1200); }
+    // Simulate drag and place
+    const palette=document.querySelectorAll('.palette .part');
+    const bodyIcon=palette[0]; const wheelIcon=palette[1]; const winIcon=palette[2];
+    const c1=getCenter(bodyIcon); positionCursor(c1.x,c1.y); await moveCursorTo(c1.x,c1.y,300);
+    const tgt=canvas.getBoundingClientRect(); const tx=tgt.left+260, ty=tgt.top+300; await moveCursorTo(tx,ty,900);
+    const body=makeBody(); canvas.appendChild(body); setTranslate(body,260,300);
+    const cw=getCenter(wheelIcon); await moveCursorTo(cw.x,cw.y,400); await moveCursorTo(tgt.left+260+120,tgt.top+300+120,800); const w1=makeWheel(); canvas.appendChild(w1); setTranslate(w1,260+120,300+120);
+    await moveCursorTo(cw.x,cw.y,400); await moveCursorTo(tgt.left+260+500,tgt.top+300+120,800); const w2=makeWheel(); canvas.appendChild(w2); setTranslate(w2,260+500,300+120);
+    const cwin=getCenter(winIcon); await moveCursorTo(cwin.x,cwin.y,400); await moveCursorTo(tgt.left+260+70,tgt.top+300-56,800); const win=makeWindow(); canvas.appendChild(win); setTranslate(win,260+70,300-56);
+    // Save step (preview)
+    const saveBtn=document.querySelector('aside .row.demo-disabled button[title="Save"]'); if(saveBtn){ const cSave=saveBtn.getBoundingClientRect(); await moveCursorTo(cSave.left+cSave.width/2, cSave.top+cSave.height/2, 600); await say('Click Save to store "My Demo Car"'); await say('Saved as "My Demo Car"', 1000); }
+    // Start
+    const playBtn=document.getElementById('demoPlay'); const pr=getCenter(playBtn); await moveCursorTo(pr.x,pr.y,500); await say('Press Run to drive');
+    // create car group from items
+    const g=document.createElementNS(SVGNS,'g'); g.classList.add('car'); canvas.appendChild(g);
+    [body,w1,w2,win].forEach(n=>g.appendChild(n)); registerCar(g, -300, 0); startAnim();
+  }
+
+  demoPlay.addEventListener('click', ()=>{ stopAnim(); runDemo(); });
+  demoStop.addEventListener('click', ()=>{ stopAnim(); demoCursor.style.display='none'; });
+  if(toCustom){ toCustom.addEventListener('click', (e)=>{ e.preventDefault(); window.location.href='cargame.html'; }); }
+})();
+</script>
+</body>
+</html> 
